@@ -22,6 +22,9 @@
 using namespace cv;
 using namespace std;
 
+int width = 80;
+int height = 80;
+
 static const std::string OPENCV_WINDOW = "Image window";
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
@@ -75,15 +78,23 @@ public:
 	Mat src;
 	//mat_received.convertTo(src,3);
 	stringstream dummy;
-	dummy <<  "/images/pic" << numb << ".png";
+	dummy <<  "/home/team_zeta/ROS/src/Competition_3/src/images/pic" << numb << ".png";
 	/*namedWindow("image", WINDOW_AUTOSIZE);
 	imshow("image", mat_received);
 	waitKey(10);*/
-	cv::Rect r(msg.x, msg.y, msg.width, msg.height);
-	cv::rectangle(mat_received, r, cv::Scalar(255, 255, 255), 2);
-	imwrite( dummy.str(), mat_received );
-	ROS_INFO("Detected face and stored it: %i", numb);
-	++numb;
+	cv::Rect r(msg.x, msg.y, width, height);
+	bool is_inside = (r & cv::Rect(0, 0, mat_received.cols, mat_received.rows)) == r;
+	if(is_inside)
+	{
+		ROS_INFO("Detected face i: %i", numb);
+		
+		//cv::rectangle(mat_received, r, cv::Scalar(255, 255, 255), 2);
+		src = mat_received(r);
+		imwrite( dummy.str(), src );
+		
+		++numb;
+	}
+	else ROS_INFO("Width: %i, Height: %i", msg.width, msg.height);
   }
 };
 
