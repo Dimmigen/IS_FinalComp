@@ -76,9 +76,11 @@ public:
 	//mat_received.convertTo(src,3);
 	stringstream dummy;
 	dummy <<  "/images/pic" << numb << ".png";
-	namedWindow("image", WINDOW_AUTOSIZE);
+	/*namedWindow("image", WINDOW_AUTOSIZE);
 	imshow("image", mat_received);
-	waitKey(10);
+	waitKey(10);*/
+	cv::Rect r(msg.x, msg.y, msg.width, msg.height);
+	cv::rectangle(mat_received, r, cv::Scalar(255, 255, 255), 2);
 	imwrite( dummy.str(), mat_received );
 	ROS_INFO("Detected face and stored it: %i", numb);
 	++numb;
