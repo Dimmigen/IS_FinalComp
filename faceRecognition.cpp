@@ -18,9 +18,9 @@ using namespace arma;
 
 int width = 80;
 int height = 80;
-double maxDist = 1.0;
+double maxDist = 0.22;
 
-string names[6] = {"GirlX","Peter","Ellen","Scarlett","Einstein","Eddison"};
+string names[8] = {"Ellen","Harry","GirlX","Scarlett","Lindsey","Forrest","Eddison","Einstein"};
 
 class Recognizer
 {
