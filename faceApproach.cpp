@@ -159,8 +159,6 @@ public:
 		int map_y = round(transformed.y()/map_resolution);
 		ROS_INFO("Pixels: x: %i, y: %i", map_x, map_y);
 		
-		src = cv_map;
-		ROS_INFO("Lets check");
 		/// Reduce noise with a kernel 3x3
 		blur(cv_map, detected_edges, Size(3,3) );
 		/// Canny detector
@@ -198,8 +196,8 @@ public:
 		ROS_INFO("Getting robot position");
 		move_base_msgs::MoveBaseGoal pBase, pMap;
 		pBase.target_pose.header.frame_id = "base_link";
-		pBase.target_pose.pose.position.x = 0.1;
-		pBase.target_pose.pose.position.y = -0.1;
+		pBase.target_pose.pose.position.x = 0.0;
+		pBase.target_pose.pose.position.y = 0.0;
 		pBase.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
 		ros::Time current_transform = ros::Time::now();
 		ROS_INFO("Waiting for transform");
