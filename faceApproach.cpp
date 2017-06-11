@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <algorithm>
 #include <string>
 #include <sstream>
 #define _USE_MATH_DEFINES
@@ -107,6 +108,16 @@ void mapCallback(const nav_msgs::OccupancyGridConstPtr& msg_map) {
             }
         }
     }
+	ROS_INFO("Created map");
+}
+
+inline double qdrt(double x){return x*x;}
+Point2f comp;
+bool dist(Point2f x1, Point2f x2)
+{
+	double dist1 = sqrt(qdrt(x1.x-comp.x)+qdrt(x1.y-comp.y));
+	double dist2 = sqrt(qdrt(x1.x-comp.x)+qdrt(x1.y-comp.y));
+	return dist1 < dist2;
 }
 
 class faceApproach
@@ -119,28 +130,26 @@ public:
 	ros::Publisher sender;
 	tf::TransformListener listener;
 	
-	Approach(ros::NodeHandle &nh): ac("move_base", true), n(nh)
+	faceApproach(ros::NodeHandle &nh): ac("move_base", true), n(nh)
 	{		
 		ROS_INFO("Starting initializer");
 		
-		faceSub = n.subscribe<geometry_msgs::PoseStamped>("new_ring", 100, &Approach::set_ring_position, this);
+		faceSub = n.subscribe<geometry_msgs::PoseStamped>("new_face", 100, &faceApproach::getFace, this);
 		
 		while(!ac.waitForServer(ros::Duration(1.0))){
 			ROS_INFO("Waiting for the move_base action server to come up");
 		}
 	}
-	~Approach()
-	{
-	}
+	~faceApproach() {}
 	void getFace(const geometry_msgs::PoseStamped::ConstPtr &msg)
 	{
-		approach(msg.target_pose.pose.position.x,msg.target_pose.pose.position.y);
+		approach(msg->pose.position.x,msg->pose.position.y);
 	}
 	
 	int approach(double x, double y)
 	{
 		Mat src, src_gray, detected_edges;
-		int dist_n = 6;
+		int dist_n = 10;
 		int dist_d = 15;
 		
 		ROS_INFO("Clicked point: x: %f, y: %f", x,y);
@@ -150,7 +159,8 @@ public:
 		int map_y = round(transformed.y()/map_resolution);
 		ROS_INFO("Pixels: x: %i, y: %i", map_x, map_y);
 		
-	
+		src = cv_map;
+		ROS_INFO("Lets check");
 		/// Reduce noise with a kernel 3x3
 		blur(cv_map, detected_edges, Size(3,3) );
 		/// Canny detector
@@ -175,18 +185,47 @@ public:
 		vector<int> indices;
 		vector<float> dists;
 	
-		int nn = 3;
+		int nn = 10;
 		kdtree.knnSearch(query, indices, dists, nn);
 		cout << query.at(0) << " " << query.at(1) << endl;
+		vector<Point2f> found;
 		for(unsigned int i = 0; i < indices.size(); ++i)
 		{
 			cout << indices.at(i)  << " " << dists.at(i) << " " << pointsForSearch.at(indices.at(i)) <<endl;
+			found.push_back(pointsForSearch.at(indices.at(i)));
 		}
 		
+		ROS_INFO("Getting robot position");
+		move_base_msgs::MoveBaseGoal pBase, pMap;
+		pBase.target_pose.header.frame_id = "base_link";
+		pBase.target_pose.pose.position.x = 0.1;
+		pBase.target_pose.pose.position.y = -0.1;
+		pBase.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
+		ros::Time current_transform = ros::Time::now();
+		ROS_INFO("Waiting for transform");
+		listener.waitForTransform(pBase.target_pose.header.frame_id, "map",current_transform, ros::Duration(3.0));
+		listener.getLatestCommonTime(pBase.target_pose.header.frame_id, "map", current_transform, NULL);
+		pBase.target_pose.header.stamp = current_transform;
+		ROS_INFO("Doing the transform");
+		listener.transformPose("map", pBase.target_pose, pMap.target_pose);
+		tf::Point pt1( pMap.target_pose.pose.position.x+X_OFF, -(pMap.target_pose.pose.position.y+Y_OFF), 0.0);
+		tf::Point transformed1 = map_transform.inverse()*pt1;
+		int robot_x = round(transformed1.x()/map_resolution);
+		int robot_y = round(transformed1.y()/map_resolution);
+		
+		comp.x = robot_x;
+		comp.y = robot_y;
+		sort(found.begin(),found.end(), dist);
+		comp = found.at(0);
+		sort(found.begin(),found.end(), dist);
+		
+		
 		vector<Point2f> contours;
-		for(unsigned int i = 0; i < indices.size(); ++i)
+		for(unsigned int i = 0; i < 3; ++i)
 		{
-			contours.push_back(pointsForSearch.at(indices.at(i)));
+			//contours.push_back(pointsForSearch.at(indices.at(i)));
+			contours.push_back(found.at(i));
+			cout << "Contours: " << contours.at(i) << endl;
 		}
 		
 		Vec4f line;
@@ -197,14 +236,11 @@ public:
 		rotation.setEulerYPR(-M_PI/2,0,0);
 		tf::Vector3 normal = direction*rotation;
 		
-		ROS_INFO("norm dx: %f, dy: %f", normal.x(), normal.y());
-		ROS_INFO("direction dx: %f, dy: %f", direction.x(), direction.y());
-		
-		int check_x = pointsForSearch.at(indices.at(0)).x+2*normal.x();
-		int check_y = pointsForSearch.at(indices.at(0)).y+2*normal.y();
+		int check_x = found.at(0).x+2*normal.x();
+		int check_y = found.at(0).y+2*normal.y();
 		int v = (int)cv_map.at<unsigned char>(check_y , check_x );
-		check_x = pointsForSearch.at(indices.at(0)).x-2*normal.x();
-		check_y = pointsForSearch.at(indices.at(0)).y-2*normal.y();
+		check_x = found.at(0).x-2*normal.x();
+		check_y = found.at(0).y-2*normal.y();
 		int w = (int)cv_map.at<unsigned char>( check_y, check_x);
 		
 		ROS_INFO("v: %d, w: %d", v,w);
@@ -221,13 +257,17 @@ public:
 			ROS_INFO("Something went with the directions wrong!");
 			return 1;
 		}
-		map_x = pointsForSearch.at(indices.at(0)).x;
-		map_y = pointsForSearch.at(indices.at(0)).y;
+		
+		ROS_INFO("norm dx: %f, dy: %f", normal.x(), normal.y());
+		ROS_INFO("direction dx: %f, dy: %f", direction.x(), direction.y());
+		//map_x = pointsForSearch.at(indices.at(0)).x;
+		//map_y = pointsForSearch.at(indices.at(0)).y;
 		
 		int init_x = round(map_x + dist_n*normal.x());
 		int init_y = round(map_y + dist_n*normal.y());
-		
+		normal *= -1;
 		double yaw = atan2(-normal.y(),normal.x());
+		ROS_INFO("Starting pxl_goal now");
 		pxl_goal(init_x, init_y, yaw);
 		
 		return 0;
