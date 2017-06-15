@@ -116,8 +116,11 @@ Point2f comp;
 bool dist(Point2f x1, Point2f x2)
 {
 	double dist1 = sqrt(qdrt(x1.x-comp.x)+qdrt(x1.y-comp.y));
-	double dist2 = sqrt(qdrt(x1.x-comp.x)+qdrt(x1.y-comp.y));
-	return dist1 < dist2;
+	double dist2 = sqrt(qdrt(x2.x-comp.x)+qdrt(x2.y-comp.y));
+	//cout << "dist1: " << dist1 << " dist2:" << dist2 << endl;
+	bool check = dist1 < dist2;
+	//cout << "bool: " << check << endl;
+	return check;
 }
 
 class faceApproach
@@ -127,7 +130,7 @@ public:
 	ros::NodeHandle n;
 
 	ros::Subscriber faceSub;
-	ros::Publisher sender;
+	ros::Publisher publisher;
 	tf::TransformListener listener;
 	
 	faceApproach(ros::NodeHandle &nh): ac("move_base", true), n(nh)
@@ -135,7 +138,7 @@ public:
 		ROS_INFO("Starting initializer");
 		
 		faceSub = n.subscribe<geometry_msgs::PoseStamped>("new_face", 100, &faceApproach::getFace, this);
-		
+		publisher = n.advertise<move_base_msgs::MoveBaseGoal>("facesPos", 100);
 		while(!ac.waitForServer(ros::Duration(1.0))){
 			ROS_INFO("Waiting for the move_base action server to come up");
 		}
@@ -213,7 +216,9 @@ public:
 		
 		comp.x = robot_x;
 		comp.y = robot_y;
+		cout <<"Robot at: (" << robot_x << "," << robot_y << ")" << endl;
 		sort(found.begin(),found.end(), dist);
+		cout << "Closest: " << found.at(0) << endl;
 		comp = found.at(0);
 		sort(found.begin(),found.end(), dist);
 		
@@ -253,6 +258,7 @@ public:
 		else
 		{
 			ROS_INFO("Something went with the directions wrong!");
+			publisher.publish(pMap);
 			return 1;
 		}
 		
@@ -267,7 +273,6 @@ public:
 		double yaw = atan2(-normal.y(),normal.x());
 		ROS_INFO("Starting pxl_goal now");
 		pxl_goal(init_x, init_y, yaw);
-		
 		return 0;
 	}
 		
@@ -283,7 +288,8 @@ public:
 		orientation.target_pose.pose.position.x = init_goal.x()-X_OFF_PXL;
 		orientation.target_pose.pose.position.y = -(init_goal.y()-Y_OFF_PXL);
 		orientation.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(yaw);
-		send_goal(orientation);
+		publisher.publish(orientation);
+		//send_goal(orientation);
 	}
 	
 	void send_goal(const move_base_msgs::MoveBaseGoal& goal)
@@ -311,7 +317,7 @@ int main(int argc, char** argv) {
     
 	ROS_INFO("Start spinning");
 	
-	while(ros::ok()) 
+	while(ros::ok())
     {
         ros::spinOnce();
     }

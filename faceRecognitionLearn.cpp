@@ -133,8 +133,8 @@ void LDA(vec meanV, mat samples, mat& w, mat& classMean, int sizeClass, int numb
 int main()
 {
 	
-	int sizeClass = 40;
-	int numbClass = 6;
+	int sizeClass = 150;
+	int numbClass = 12;
 	int sampleSize = sizeClass*numbClass;
 	
 	mat samples(0,0);
